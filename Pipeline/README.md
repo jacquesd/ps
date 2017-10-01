@@ -1,4 +1,4 @@
-# Pieline
+# Pipeline
 Implementation of the pipeline style in go.
 
 ## Author
