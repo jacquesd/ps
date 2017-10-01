@@ -97,10 +97,10 @@ func frequencies(wordList []string) map[string]int {
 //Takes a dictionary of words and their frequencies
 //and returns a list of pairs where the entries are
 //sorted by frequency
-func sort(wordFrequ map[string]int) PairList {
-	pairList := make(PairList, len(wordFrequ))
+func sort(wordFreq map[string]int) PairList {
+	pairList := make(PairList, len(wordFreq))
 	i := 0
-	for word, frequency := range wordFrequ {
+	for word, frequency := range wordFreq {
 		pairList[i] = Pair{word, frequency}
 		i++
 	}
