@@ -5,9 +5,12 @@ import (
 	"io/ioutil"
 	"os"
 	"regexp"
-	sorted "sort"
+	"sort"
 	"strings"
 )
+
+type genericArgs []interface{}
+type continuation func(args genericArgs, next continuation)
 
 // equivalent of Python's dictionary items
 // from https://github.com/tvraman/go-learn/blob/master/pairlist/pairlist.go
@@ -22,7 +25,7 @@ func (p PairList) Len() int           { return len(p) }
 func (p PairList) Less(i, j int) bool { return p[i].Value < p[j].Value }
 func (p PairList) Swap(i, j int)      { p[i], p[j] = p[j], p[i] }
 
-var ascii_lowercase = "abcdefghijklmnopqrstuvwxyz"
+var asciiLowercase = "abcdefghijklmnopqrstuvwxyz"
 
 // equivalent of Python's x in y
 // from https://stackoverflow.com/a/15323988
@@ -35,46 +38,65 @@ func stringInSlice(a string, list []string) bool {
 	return false
 }
 
-type NoOpFn func()
-type PrintFn func(PairList, NoOpFn)
-type SortFn func(map[string]int, PrintFn)
-type FrequenciesFn func(wordList []string, fn SortFn)
-type RemoveStopWordsFn func(wordList []string, fn FrequenciesFn)
-type ScanFn func(strData string, fn RemoveStopWordsFn)
-type NormalizeFn func(strData string, fn ScanFn)
-type FilterCharsFn func(strData string, fn NormalizeFn)
+func readFile(args genericArgs, next continuation) {
+	pathToFile := args[0].(string)
+	stopWordsPath := args[1].(string)
+	continuations := args[2].([]continuation)
 
-
-func readFile(pathToFile string, fn FilterCharsFn) {
-	f, err := ioutil.ReadFile(pathToFile)
+	fd, err := ioutil.ReadFile(pathToFile)
 	if err != nil {
 		panic(err)
 	}
+	data := string(fd)
 
-	data := string(f)
-	fn(data, normalize)
+	next(genericArgs{data, stopWordsPath, continuations[1:]}, continuations[0])
 }
 
-func filterChars(strData string, fn NormalizeFn) {
+func filterChars(args genericArgs, next continuation) {
+	strData := args[0].(string)
+	stopWordsPath := args[1].(string)
+	continuations := args[2].([]continuation)
+
 	pattern := regexp.MustCompile(`[\W_]+`)
-	fn(pattern.ReplaceAllString(strData, ` `), scan)
+
+	next(genericArgs{pattern.ReplaceAllString(strData, ` `), stopWordsPath, continuations[1:]}, continuations[0])
 }
 
-func normalize(strData string, fn ScanFn) {
-	fn(strings.ToLower(strData), removeStopWords)
+func normalize(args genericArgs, next continuation) {
+	strData := args[0].(string)
+	stopWordsPath := args[1].(string)
+	continuations := args[2].([]continuation)
+
+	next(genericArgs{strings.ToLower(strData), stopWordsPath, continuations[1:]}, continuations[0])
 }
 
-func scan(strData string, fn RemoveStopWordsFn) {
-	fn(strings.Fields(strData), frequencies)
+func scan(args genericArgs, next continuation) {
+	strData := args[0].(string)
+	stopWordsPath := args[1].(string)
+	continuations := args[2].([]continuation)
+
+	next(genericArgs{strings.Fields(strData), stopWordsPath, continuations[1:]}, continuations[0])
 }
 
-func removeStopWords(wordList []string, fn FrequenciesFn) {
-	f, err := ioutil.ReadFile(os.Args[2])
+func getStopWords(args genericArgs, next continuation) {
+	wordList := args[0].([]string)
+	stopWordsPath := args[1].(string)
+	continuations := args[2].([]continuation)
+
+	f, err := ioutil.ReadFile(stopWordsPath)
 	if err != nil {
 		panic(err)
 	}
 	stopWords := strings.Split(string(f), `,`)
-	stopWords = append(stopWords, strings.Split(ascii_lowercase, "")...)
+	stopWords = append(stopWords, strings.Split(asciiLowercase, "")...)
+
+	next(genericArgs{wordList, stopWords, continuations[1:]}, continuations[0])
+}
+
+func removeStopWords(args genericArgs, next continuation) {
+	wordList := args[0].([]string)
+	stopWords := args[1].([]string)
+	continuations := args[2].([]continuation)
 
 	filteredWordList := []string{}
 	for _, word := range wordList {
@@ -82,10 +104,14 @@ func removeStopWords(wordList []string, fn FrequenciesFn) {
 			filteredWordList = append(filteredWordList, word)
 		}
 	}
-	fn(filteredWordList, sort)
+
+	next(genericArgs{filteredWordList, continuations[1:]}, continuations[0])
 }
 
-func frequencies(wordList []string, fn SortFn) {
+func frequencies(args genericArgs, next continuation) {
+	wordList := args[0].([]string)
+	continuations := args[1].([]continuation)
+
 	wordFreqs := map[string]int{}
 	for _, word := range wordList {
 		if _, present := wordFreqs[word]; present {
@@ -94,32 +120,72 @@ func frequencies(wordList []string, fn SortFn) {
 			wordFreqs[word] = 1
 		}
 	}
-	fn(wordFreqs, printText)
+
+	next(genericArgs{wordFreqs, continuations[1:]}, continuations[0])
 }
 
-func sort(wf map[string]int, fn PrintFn) {
-	pairList := make(PairList, len(wf))
+func buildFrequenciesPairs(args genericArgs, next continuation) {
+	wordFreqs := args[0].(map[string]int)
+	continuations := args[1].([]continuation)
+
+	pairList := make(PairList, len(wordFreqs))
 	i := 0
-	for word, frequency := range wf {
+	for word, frequency := range wordFreqs {
 		pairList[i] = Pair{word, frequency}
 		i++
 	}
-	sorted.Sort(sorted.Reverse(pairList))
-	fn(pairList, noOp)
+
+	next(genericArgs{pairList, continuations[1:]}, continuations[0])
+
 }
 
-func printText(wordFreqs PairList, fn NoOpFn) {
-	for i, pair := range wordFreqs {
-		if i >= 25 {
-			return
-		}
+func sortFrequencies(args genericArgs, next continuation) {
+	wordFreqs := args[0].(PairList)
+	continuations := args[1].([]continuation)
+
+	sort.Sort(sort.Reverse(wordFreqs))
+
+	next(genericArgs{wordFreqs, continuations[1:]}, continuations[0])
+}
+
+func take25(args genericArgs, next continuation) {
+	wordFreqs := args[0].(PairList)
+	continuations := args[1].([]continuation)
+
+	if len(wordFreqs) < 25 {
+		next(genericArgs{wordFreqs, continuations[1:]}, continuations[0])
+	} else {
+		next(genericArgs{wordFreqs[0:25], continuations[1:]}, continuations[0])
+	}
+}
+
+func printText(args genericArgs, next continuation) {
+	wordFreqs := args[0].(PairList)
+	continuations := args[1].([]continuation)
+
+	for _, pair := range wordFreqs {
 		fmt.Println(pair.Key, " - ", pair.Value)
 	}
-	fn()
+
+	next(genericArgs{continuations[1:]}, continuations[0])
 }
 
-func noOp() {}
+func noOp(_ genericArgs, _ continuation) {}
 
 func main() {
-	readFile(os.Args[1], filterChars)
+	continuations := []continuation{
+		filterChars,
+		normalize,
+		scan,
+		getStopWords,
+		removeStopWords,
+		frequencies,
+		buildFrequenciesPairs,
+		sortFrequencies,
+		take25,
+		printText,
+		noOp,
+		nil,  // required to be passed as the "next" continuation to noOP
+	}
+	readFile(genericArgs{os.Args[1], os.Args[2], continuations[1:]}, continuations[0])
 }
