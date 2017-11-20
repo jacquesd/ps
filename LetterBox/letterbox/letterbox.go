@@ -89,7 +89,7 @@ func (wfc wordFrequencyController) run() {
 
 	wordFreqs := wfc.wordFreqManager.Dispatch("sorted")[0].(PairList)
 	if len(wordFreqs) > 25 { wordFreqs = wordFreqs[0:25] }
-	
+
 	for _, pair := range wordFreqs { fmt.Printf("%s  -  %d\n", pair.Key, pair.Value) }
 }
 
