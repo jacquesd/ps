@@ -74,11 +74,7 @@ func (wfm wordsFrequencyManager) Dispatch(operation string, args ...string) []ge
 
 func NewWordsFrequencyManager() *wordsFrequencyManager { return &wordsFrequencyManager{map[string]int{}} }
 
-type wordFrequencyController struct {
-	storageManager   LetterBox
-	stopWordsManager LetterBox
-	wordFreqManager  LetterBox
-}
+type wordFrequencyController struct { storageManager,  stopWordsManager, wordFreqManager  LetterBox }
 
 func (wfc wordFrequencyController) run() {
 	for _, word := range wfc.storageManager.Dispatch("words")[0].([]string) {
@@ -95,8 +91,7 @@ func (wfc wordFrequencyController) run() {
 
 func (wfc wordFrequencyController) Dispatch(operation string, args ...string) []generic {
 	if operation == "run" {
-		wfc.run()
-		return []generic{}
+		wfc.run(); return []generic{}
 	}
 	panic(fmt.Sprintf("Unexpected operation '%s' for 'wordFrequencyController'", operation))
 }
